@@ -9,6 +9,13 @@ The application follows a **Turborepo monorepo architecture**, consisting of a R
 It also includes Docker-based containerization and GitHub Actions workflows for continuous integration, container image publishing, and EC2 deployment.
 
 ---
+##Deploy link :
+http://52.64.10.16/
+
+## Screen Recording
+
+[Watch Application Demo](docs/assets/bug-tracker-demo.mp4)
+
 
 ## Table of Contents
 
