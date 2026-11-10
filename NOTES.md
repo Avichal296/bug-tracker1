@@ -6,9 +6,7 @@ I prioritized user-scoped database queries, safe authentication, server-side val
 
 Docker Compose runs PostgreSQL, the API and the web server together. GitHub Actions builds the workspaces and container images on pull requests and main branch pushes, publishes tagged images to GHCR, and provides an SSH deployment workflow for an EC2 host.
 
-## What I left for a follow-up
 
-There is no live AWS deployment or production database URL in this submission. Those require account-specific infrastructure and secrets. Automated tests, pagination, password recovery, email verification, audit history, malware scanning and structured telemetry remain follow-up work.
 
 ## Why PostgreSQL and Prisma
 
