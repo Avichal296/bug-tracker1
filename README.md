@@ -1,104 +1,400 @@
 # Bug Tracker Lite
 
-Bug Tracker Lite is a small issue tracker built for the Evolient Full Stack Developer assignment. It is a Turborepo monorepo with a React and Tailwind web app, an Express API, PostgreSQL and Prisma ORM.
+A full-stack issue tracking application built as part of the **Elovient Full Stack Developer Evaluation**.
 
-## Project structure
+Bug Tracker Lite enables authenticated users to create, manage, filter, and track software bugs, with secure screenshot uploads powered by AWS S3.
+
+The application follows a **Turborepo monorepo architecture**, consisting of a React and Tailwind CSS frontend, an Express.js backend, and a PostgreSQL database managed through Prisma ORM.
+
+It also includes Docker-based containerization and GitHub Actions workflows for continuous integration, container image publishing, and EC2 deployment.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Technology Stack](#technology-stack)
+- [System Architecture](#system-architecture)
+- [Application Architecture](#application-architecture)
+- [Monorepo Structure](#monorepo-structure)
+- [Core Workflows](#core-workflows)
+  - [Authentication Flow](#1-authentication-flow)
+  - [Bug Management Flow](#2-bug-management-flow)
+  - [Screenshot Upload Flow](#3-screenshot-upload-flow)
+- [Database Design](#database-design)
+- [API Documentation](#api-documentation)
+- [Docker Architecture](#docker-architecture)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [Production Deployment Architecture](#production-deployment-architecture)
+- [Security Considerations](#security-considerations)
+- [Local Development Setup](#local-development-setup)
+- [Environment Variables](#environment-variables)
+- [Additional Assignment Deliverables](#additional-assignment-deliverables)
+- [Deployment Status](#deployment-status)
+
+---
+
+## Overview
+
+Bug Tracker Lite provides a centralized platform for reporting and managing software issues.
+
+Users can register, authenticate, create bug reports, assign severity and status, attach screenshots, and manage their own bug records.
+
+The application is designed around four primary engineering principles:
+
+1. **Modularity:** Separate frontend, backend, database, and shared responsibilities through a Turborepo monorepo.
+2. **Security:** Protect application resources using JWT authentication, bcrypt password hashing, rate limiting, and server-side ownership verification.
+3. **Scalability:** Separate application services from database and file storage infrastructure.
+4. **Deployment Automation:** Use Docker and GitHub Actions to automate builds, container image publishing, and deployment workflows.
+
+---
+
+## Key Features
+
+### Authentication and Authorization
+
+- User registration and login.
+- Password hashing using bcrypt.
+- JWT-based authentication.
+- Per-IP rate limiting.
+- Protected API endpoints.
+- Server-side ownership verification for every bug operation.
+
+### Bug Management
+
+- Create, list, view, update, and delete bugs.
+- Filter bugs by status.
+- User-specific bug records.
+- Three severity levels:
+  - `low`
+  - `med`
+  - `high`
+- Three status values:
+  - `open`
+  - `in-progress`
+  - `closed`
+
+### Screenshot Management
+
+- Direct browser-to-S3 screenshot uploads.
+- Short-lived pre-signed POST requests.
+- Private S3 object storage.
+- File type and 5 MB size validation.
+- Short-lived signed GET URLs for image viewing.
+- Automatic deletion of associated S3 objects when bugs are deleted.
+
+### Database Management
+
+- PostgreSQL as the primary relational database.
+- Prisma ORM for database access.
+- Version-controlled database schema and SQL migrations.
+- User ownership relationships.
+- Enumerated severity and status values.
+- Database indexes for efficient querying.
+
+### DevOps and Deployment
+
+- Turborepo monorepo architecture.
+- Docker and Docker Compose.
+- GitHub Actions CI workflows.
+- Automated Docker image builds.
+- GitHub Container Registry (GHCR) publishing.
+- EC2 deployment workflow through SSH.
+
+---
+
+## Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| Frontend | React.js, Tailwind CSS |
+| Backend | Node.js, Express.js |
+| Database | PostgreSQL |
+| ORM | Prisma ORM |
+| Authentication | JWT, bcrypt |
+| File Storage | AWS S3 |
+| Monorepo | Turborepo, npm Workspaces |
+| Containerization | Docker, Docker Compose |
+| CI/CD | GitHub Actions |
+| Container Registry | GitHub Container Registry |
+| Deployment | AWS EC2 |
+| Development Tools | Git, GitHub, npm |
+
+---
+
+## System Architecture
+
+The application follows a layered client-server architecture with a separate database and object storage layer.
+
+The React frontend communicates with the Express API through REST endpoints. The backend handles authentication, authorization, request validation, business logic, and database operations.
+
+Prisma ORM provides the database access layer between Express.js and PostgreSQL.
+
+AWS S3 is used independently for private screenshot storage, allowing browsers to upload files directly without routing file contents through the backend.
+
+### High-Level Architecture
+
+```mermaid
+flowchart TB
+    USER[User / Browser]
+
+    subgraph FRONTEND["Frontend Layer"]
+        UI[React Application]
+        SESSION[Session Context]
+        API_CLIENT[API Service Layer]
+    end
+
+    subgraph BACKEND["Backend Layer - Express.js"]
+        ROUTES[API Routes]
+        AUTH[JWT Authentication]
+        RATE[Rate Limiting]
+        VALID[Request Validation]
+        CTRL[Controllers]
+        CONFIG[Prisma and S3 Clients]
+    end
+
+    ORM[Prisma ORM]
+    DB[(PostgreSQL Database)]
+    S3[(Private AWS S3 Bucket)]
+
+    USER --> UI
+    UI --> SESSION
+    UI --> API_CLIENT
+
+    API_CLIENT -->|HTTPS / REST + JWT| ROUTES
+    ROUTES --> AUTH
+    AUTH --> RATE
+    RATE --> VALID
+    VALID --> CTRL
+
+    CTRL --> CONFIG
+    CONFIG --> ORM
+    ORM --> DB
+
+    CONFIG -->|Generate Signed Upload Requests| S3
+    API_CLIENT -.->|Direct Pre-signed POST Upload| S3
+    UI -.->|Signed GET URL| S3
+```
+
+### Architecture Components
+
+| Component | Responsibility |
+|---|---|
+| React Application | Handles user interactions and interface rendering. |
+| Session Context | Maintains frontend authentication state. |
+| API Service Layer | Centralizes communication with backend endpoints. |
+| Express Routes | Defines HTTP endpoints and request routing. |
+| JWT Middleware | Authenticates incoming protected requests. |
+| Rate Limiting Middleware | Restricts excessive requests based on client IP. |
+| Validation Utilities | Validates incoming request data. |
+| Controllers | Handle HTTP requests and coordinate operations. |
+| Prisma Client | Provides type-safe database access through Prisma ORM. |
+| PostgreSQL | Stores users and bug records. |
+| AWS S3 | Stores private screenshot objects. |
+
+---
+
+## Application Architecture
+
+The codebase follows a separation-of-concerns approach, keeping HTTP handling, business operations, validation, database access, and frontend responsibilities logically separated.
+
+### Backend Request Lifecycle
+
+```mermaid
+flowchart TD
+    A[Incoming HTTP Request]
+    B[Express Router]
+    C{Protected Route?}
+    D[JWT Authentication]
+    E[Rate Limiting]
+    F[Request Validation]
+    G[Controller]
+    H[Prisma ORM]
+    I[(PostgreSQL)]
+    J[HTTP Response]
+
+    A --> B
+    B --> C
+    C -->|Yes| D
+    C -->|No| E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> H
+    H --> G
+    G --> J
+```
+
+**Routes:** Define application endpoints and connect requests to the appropriate middleware and controllers.
+
+**Middleware:** Handles shared request processing, including JWT authentication, rate limiting, and error handling.
+
+**Controllers:** Coordinate application operations and generate HTTP responses.
+
+**Configuration:** Initializes reusable Prisma and AWS S3 clients.
+
+**Prisma ORM:** Handles communication between the application and PostgreSQL.
+
+### Frontend Architecture
+
+The frontend separates application routing, session state, reusable components, page-level components, and API communication.
 
 ```text
-apps/
-  api/
-    prisma/              Prisma schema and SQL migrations
-    src/
-      config/            Prisma and S3 clients
-      controllers/       Authentication and bug workflows
-      middleware/        JWT, rate limiting and error handling
-      routes/            HTTP route definitions
-      services/          S3 operations
-      utils/             Request validation
-  web/
-    src/
-      app/               Routing and session context
-      components/        Shared interface components
-      pages/             Login, bug list, detail and edit screens
-      services/          API requests and image upload
-packages/                Shared packages can be added here as the app grows
-docs/
-  production-monitoring-proposal.md
-  paint-erp-architecture.svg
-package.json             npm workspaces and Turborepo tasks
-turbo.json
+React Application
+       |
+       v
+Application Router
+       |
+       +------> Session Context
+       |
+       v
+Pages
+       |
+       v
+Reusable Components
+       |
+       v
+API Service Layer
+       |
+       v
+Express REST API
 ```
 
-## Features
+This structure improves maintainability and makes it easier to extend application functionality without tightly coupling UI components to backend implementation details.
 
-- Account registration and login with bcrypt password hashing, JWT authentication and per-IP rate limiting.
-- Create, list, filter, view, edit and delete bugs. Ownership is checked on the server for every database operation.
-- Private S3 screenshots uploaded directly from the browser using a short-lived pre-signed POST. File type and 5 MB size are checked by the API and the S3 upload policy.
-- Short-lived signed image viewing URLs. Deleting a bug also deletes its attached S3 object.
-- Prisma schema and migrations for PostgreSQL, including user ownership, enums and indexes.
-- Task 2 proposal and meeting notes in [docs/production-monitoring-proposal.md](docs/production-monitoring-proposal.md).
-- Task 3 ERP architecture diagram in [docs/paint-erp-architecture.svg](docs/paint-erp-architecture.svg).
+---
 
-## Requirements
+## Monorepo Structure
 
-- Node.js 22 or later
-- npm 10 or later
-- PostgreSQL 15 or later
-- An AWS S3 bucket and credentials or an instance role for screenshot storage
+The repository uses Turborepo and npm Workspaces to manage frontend and backend applications from a single repository.
 
-## Run locally
-
-1. Create a local PostgreSQL database named `bug_tracker_lite`.
-2. Copy `apps/api/.env.example` to `apps/api/.env`. Set `DATABASE_URL` to your PostgreSQL connection string and choose a private random `JWT_SECRET`.
-3. Optionally copy `apps/web/.env.example` to `apps/web/.env`. Its default API URL is `http://localhost:4100`.
-4. From the repository root, install dependencies and apply the schema migration:
-
-   ```sh
-   npm install
-   npm run db:migrate --workspace=@bug-tracker/api -- --name init
-   npm run dev
-   ```
-
-Open the app at `http://localhost:5173`. The API listens on `http://localhost:4100`; the health endpoint is `/api/health`.
-
-Run `npm run build` from the root to build both workspaces. `npm run db:studio --workspace=@bug-tracker/api` opens Prisma Studio.
-
-## Docker
-
-Run the complete stack (PostgreSQL, API and web server) with Docker Compose:
-
-```sh
-docker compose up --build
+```text
+bug-tracker-lite/
+│
+├── apps/
+│   │
+│   ├── api/
+│   │   ├── prisma/
+│   │   │   ├── migrations/
+│   │   │   └── schema.prisma
+│   │   │
+│   │   ├── src/
+│   │   │   ├── config/
+│   │   │   ├── controllers/
+│   │   │   ├── middleware/
+│   │   │   ├── routes/
+│   │   │   ├── services/
+│   │   │   └── utils/
+│   │   │
+│   │   ├── .env.example
+│   │   └── package.json
+│   │
+│   └── web/
+│       ├── src/
+│       │   ├── app/
+│       │   ├── components/
+│       │   ├── pages/
+│       │   └── services/
+│       │
+│       ├── .env.example
+│       └── package.json
+│
+├── packages/
+│
+├── docs/
+│   ├── production-monitoring-proposal.md
+│   └── paint-erp-architecture.svg
+│
+├── .github/
+│   └── workflows/
+│
+├── docker-compose.yml
+├── docker-compose.prod.yml
+├── package.json
+├── turbo.json
+├── NOTES.md
+└── README.md
 ```
 
-Open `http://localhost:8080`. Compose waits for PostgreSQL health, applies Prisma migrations when the API starts and keeps database data in a named volume. Copy `.env.example` to `.env` and set `POSTGRES_PASSWORD` and `JWT_SECRET`; add AWS settings there for S3 screenshots. The example values are for local development only.
+**Note:** This is a logical representation of the repository structure. The exact Docker and workflow filenames should match the actual repository.
 
-The GitHub Actions CI workflow builds both workspaces and both Docker images on pull requests and pushes to `main`. Publishing a GitHub release, or manually running the publish workflow, builds and publishes the API and web images to GHCR. The `Deploy to EC2` workflow can then deploy a selected image tag over SSH.
+---
 
-For EC2 deployment, provision Docker Engine and Compose on the instance, log in to GHCR with a read-only package token, and create a private `.env` beside `docker-compose.prod.yml` with `API_IMAGE`, `WEB_IMAGE`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `DATABASE_URL` and `JWT_SECRET`. Add `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` and `DEPLOY_PATH` as GitHub Actions secrets in the `production` environment. Publish a release image first, then run `Deploy to EC2` with that image tag. Add HTTPS through a reverse proxy/load balancer before exposing the service publicly.
+## Core Workflows
 
-## Environment and AWS security
+### 1. Authentication Flow
 
-Never commit `.env`, AWS keys or production secrets. Use an EC2 instance role in AWS and restrict its S3 permissions to the app's bucket and object prefix. Keep S3 Block Public Access enabled. Configure bucket CORS to allow the frontend origin to submit signed POST requests. Use signed GET URLs for private image viewing.
+The application uses JWT-based authentication and bcrypt password hashing.
 
-## API overview
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as React Frontend
+    participant API as Express API
+    participant MW as Middleware
+    participant DB as PostgreSQL
+    participant Prisma as Prisma ORM
 
-All bug routes require `Authorization: Bearer <token>`.
+    User->>UI: Enter registration / login details
+    UI->>API: POST /api/auth/signup or /login
+    API->>MW: Apply request rate limiting
+    MW-->>API: Request permitted
+    API->>Prisma: Query user information
+    Prisma->>DB: Database operation
+    DB-->>Prisma: User record
+    Prisma-->>API: User data
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/api/auth/signup` | Create an account |
-| POST | `/api/auth/login` | Sign in and receive a JWT |
-| GET | `/api/health` | Liveness check |
-| POST | `/api/bugs/upload-url` | Create a signed S3 upload form |
-| POST | `/api/bugs` | Create a bug |
-| GET | `/api/bugs?status=open` | List own bugs, optionally filtered |
-| GET | `/api/bugs/:id` | Read own bug and get a signed image URL |
-| PUT | `/api/bugs/:id` | Update own bug |
-| DELETE | `/api/bugs/:id` | Delete own bug and attached image |
+    API->>API: Validate credentials / Hash password
+    API->>API: Generate JWT
+    API-->>UI: Authentication response
+    UI-->>User: Authenticated session
+```
 
-Severity values are `low`, `med` and `high`. Status values are `open`, `in-progress` and `closed`.
+For subsequent protected API requests, the frontend includes the JWT in the Authorization header:
 
-## Deployment status
+```http
+Authorization: Bearer <token>
+```
 
-There is no live URL in this submission because AWS and production database resources need account-specific configuration. A practical first release is the API on Elastic Beanstalk or EC2, the frontend behind CloudFront, and a separate private S3 bucket for screenshots. Configure TLS, production CORS, secrets, health checks, logs and backups before public release.
+The backend verifies the token through JWT authentication middleware before processing protected resources.
+
+### 2. Bug Management Flow
+
+All bug operations are restricted to the authenticated user.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as React Frontend
+    participant API as Express API
+    participant Auth as JWT Middleware
+    participant Controller as Bug Controller
+    participant Prisma as Prisma ORM
+    participant DB as PostgreSQL
+
+    User->>UI: Create / View / Update / Delete bug
+    UI->>API: Authenticated HTTP request
+    API->>Auth: Validate JWT
+    Auth-->>API: Authenticated user identity
+
+    API->>Controller: Process request
+    Controller->>Prisma: Query with bug ID and user ID
+    Prisma->>DB: Execute database operation
+    DB-->>Prisma: Authorized bug record
+    Prisma-->>Controller: Query result
+
+    Controller-->>API: Operation result
+    API-->>UI: HTTP response
+    UI-->>User: Updated interface
+```
+
+**Ownership enforcement:** Every database operation involving a bug checks the authenticated user's ownership on the server. This prevents users from accessing or modifying another user's bug records by changing request parameters.
+
+### 3. Screenshot Upload Flow
+
+Screenshot uploads use a direct-to-S3 approach.
+
+Instead of sending large file contents through Express, the backend
