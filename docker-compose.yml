@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bug_tracker_lite
+      POSTGRES_USER: bug_tracker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_development_only}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bug_tracker -d bug_tracker_lite"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4100
+      DATABASE_URL: postgresql://bug_tracker:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/bug_tracker_lite?schema=public
+      JWT_SECRET: ${JWT_SECRET:-local-compose-secret-change-before-deployment}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-2h}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ""
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

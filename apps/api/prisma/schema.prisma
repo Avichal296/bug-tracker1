@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Severity {
+  LOW  @map("low")
+  MED  @map("med")
+  HIGH @map("high")
+
+  @@map("severity")
+}
+
+enum BugStatus {
+  OPEN        @map("open")
+  IN_PROGRESS @map("in-progress")
+  CLOSED      @map("closed")
+
+  @@map("bug_status")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(80)
+  email        String   @unique @db.VarChar(254)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  bugs         Bug[]
+
+  @@map("users")
+}
+
+model Bug {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @map("user_id") @db.Uuid
+  title       String     @db.VarChar(120)
+  description String     @default("") @db.VarChar(5000)
+  severity    Severity   @default(MED)
+  status      BugStatus  @default(OPEN)
+  imageKey    String     @default("") @map("image_key") @db.VarChar(1024)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@map("bugs")
+}

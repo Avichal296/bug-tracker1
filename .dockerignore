@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/.turbo
+**/generated
+**/.env
+.git
+.DS_Store
+Bug-Tracker-Lite-Task-1.zip
